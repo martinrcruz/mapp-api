@@ -74,7 +74,13 @@ const locationSchema = new mongoose.Schema(
 );
 
 // Índices compuestos
-locationSchema.index({ name: 'text', 'address.city': 'text' });
+locationSchema.index({ 
+  name: 'text', 
+  'address.street': 'text',
+  'address.city': 'text',
+  'address.state': 'text',
+  'address.country': 'text'
+});
 locationSchema.index({ coordinates: '2dsphere' });
 locationSchema.index({ type: 1, isActive: 1 });
 locationSchema.index({ createdAt: -1 });

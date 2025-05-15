@@ -20,17 +20,17 @@ logger.info('Iniciando servidor con configuración:', {
   port: config.server.port,
   nodeEnv: config.server.nodeEnv,
   apiPrefix: config.api.prefix,
-  allowedOrigins: config.cors.allowedOrigins
+  allowedOrigins: config.cors.allowedOrigins,
 });
 
 // Middleware
 app.use(helmet());
 app.use(
   cors({
-    origin: function(origin, callback) {
+    origin: function (origin, callback) {
       // Permitir solicitudes sin origen (como las herramientas de API)
       if (!origin) return callback(null, true);
-      
+
       if (config.cors.allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
@@ -91,7 +91,7 @@ async function connectDB() {
     await mongoose.connect(config.database.uri, config.database.options);
     logger.info('Conectado a MongoDB Atlas');
 
-    mongoose.connection.on('error', err => {
+    mongoose.connection.on('error', (err) => {
       logger.error('Error en la conexión de MongoDB:', err);
     });
 

@@ -1,28 +1,57 @@
+/* controllers/location.controller.js */
+const mongoose = require('mongoose');
 const { validationResult } = require('express-validator');
 const Location = require('../models/location.model');
 const logger = require('../config/logger');
 
+/* ────────────────────────────────────────────────────────── */
+/* Utilidades comunes                                        */
+/* ────────────────────────────────────────────────────────── */
+
 /**
- * Obtiene todas las ubicaciones
- * @route GET /locations
+ * Envía una respuesta 400 si el ID de Mongo no es válido
  */
+function abortIfInvalidObjectId(id, res) {
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    res.status(400).json({
+      success: false,
+      message: 'ID inválido',
+    });
+    return true; // ← indica que ya se respondió
+  }
+  return false;
+}
+
+/**
+ * Maneja CastError (_id) de Mongoose y lo transforma en 400
+ */
+function handleCastError(error, res, next) {
+  if (error instanceof mongoose.Error.CastError && error.path === '_id') {
+    return res.status(400).json({
+      success: false,
+      message: 'ID inválido',
+    });
+  }
+  next(error); // ← deja que el middleware global lo maneje
+}
+
+/* ────────────────────────────────────────────────────────── */
+/* GET /locations                                            */
+/* ────────────────────────────────────────────────────────── */
 const getLocations = async (req, res, next) => {
   try {
     logger.info('Iniciando consulta de ubicaciones');
     const { type, search, lat, lng, radius } = req.query;
+
     const query = { isActive: true };
 
-    // Filtro por tipo
-    if (type) {
-      query.type = type;
-    }
+    /* Filtro por tipo */
+    if (type) query.type = type;
 
-    // Búsqueda por texto
-    if (search) {
-      query.$text = { $search: search };
-    }
+    /* Búsqueda por texto */
+    if (search) query.$text = { $search: search };
 
-    // Búsqueda geoespacial
+    /* Búsqueda geoespacial */
     if (lat && lng && radius) {
       query.coordinates = {
         $near: {
@@ -30,14 +59,13 @@ const getLocations = async (req, res, next) => {
             type: 'Point',
             coordinates: [parseFloat(lng), parseFloat(lat)],
           },
-          $maxDistance: parseInt(radius) * 1000, // Convertir km a metros
+          $maxDistance: parseInt(radius, 10) * 1000, // km → m
         },
       };
     }
 
-    logger.debug('Ejecutando consulta de ubicaciones:', { query });
+    logger.debug('Consulta construida:', { query });
 
-    // Optimizar la consulta
     const locations = await Location.find(query)
       .select(
         'name description type coordinates address contact createdBy isActive createdAt updatedAt'
@@ -47,7 +75,6 @@ const getLocations = async (req, res, next) => {
       .exec();
 
     logger.info(`Se encontraron ${locations.length} ubicaciones`);
-    logger.debug('Ubicaciones encontradas:', locations);
 
     res.json({
       success: true,
@@ -55,29 +82,17 @@ const getLocations = async (req, res, next) => {
       data: locations,
     });
   } catch (error) {
-    logger.error('Error al obtener ubicaciones:', {
-      error: error.message,
-      stack: error.stack,
-    });
-
-    if (error.name === 'MongooseError' && error.message.includes('buffering timed out')) {
-      return res.status(504).json({
-        success: false,
-        error: 'Tiempo de espera agotado al consultar la base de datos',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
-      });
-    }
-
-    next(error);
+    handleCastError(error, res, next);
   }
 };
 
-/**
- * Obtiene una ubicación por ID
- * @route GET /locations/:id
- */
+/* ────────────────────────────────────────────────────────── */
+/* GET /locations/:id                                        */
+/* ────────────────────────────────────────────────────────── */
 const getLocation = async (req, res, next) => {
   try {
+    if (abortIfInvalidObjectId(req.params.id, res)) return;
+
     const location = await Location.findById(req.params.id).populate('createdBy', 'name email');
 
     if (!location) {
@@ -92,14 +107,13 @@ const getLocation = async (req, res, next) => {
       data: location,
     });
   } catch (error) {
-    next(error);
+    handleCastError(error, res, next);
   }
 };
 
-/**
- * Crea una nueva ubicación
- * @route POST /locations
- */
+/* ────────────────────────────────────────────────────────── */
+/* POST /locations                                           */
+/* ────────────────────────────────────────────────────────── */
 const createLocation = async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -128,12 +142,13 @@ const createLocation = async (req, res, next) => {
   }
 };
 
-/**
- * Actualiza una ubicación
- * @route PUT /locations/:id
- */
+/* ────────────────────────────────────────────────────────── */
+/* PUT /locations/:id                                        */
+/* ────────────────────────────────────────────────────────── */
 const updateLocation = async (req, res, next) => {
   try {
+    if (abortIfInvalidObjectId(req.params.id, res)) return;
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -144,7 +159,6 @@ const updateLocation = async (req, res, next) => {
     }
 
     const location = await Location.findById(req.params.id);
-
     if (!location) {
       return res.status(404).json({
         success: false,
@@ -152,7 +166,7 @@ const updateLocation = async (req, res, next) => {
       });
     }
 
-    // Verificar permisos
+    /* Verificación de permisos */
     if (location.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
@@ -169,18 +183,18 @@ const updateLocation = async (req, res, next) => {
       data: location,
     });
   } catch (error) {
-    next(error);
+    handleCastError(error, res, next);
   }
 };
 
-/**
- * Elimina una ubicación
- * @route DELETE /locations/:id
- */
+/* ────────────────────────────────────────────────────────── */
+/* DELETE /locations/:id                                     */
+/* ────────────────────────────────────────────────────────── */
 const deleteLocation = async (req, res, next) => {
   try {
-    const location = await Location.findById(req.params.id);
+    if (abortIfInvalidObjectId(req.params.id, res)) return;
 
+    const location = await Location.findById(req.params.id);
     if (!location) {
       return res.status(404).json({
         success: false,
@@ -188,7 +202,7 @@ const deleteLocation = async (req, res, next) => {
       });
     }
 
-    // Verificar permisos
+    /* Verificación de permisos */
     if (location.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
@@ -196,7 +210,7 @@ const deleteLocation = async (req, res, next) => {
       });
     }
 
-    // Soft delete
+    /* Soft delete */
     location.isActive = false;
     await location.save();
 
@@ -205,44 +219,54 @@ const deleteLocation = async (req, res, next) => {
       message: 'Ubicación eliminada exitosamente',
     });
   } catch (error) {
-    next(error);
+    handleCastError(error, res, next);
   }
 };
 
+/* ────────────────────────────────────────────────────────── */
+/* GET /locations/buscar                                     */
+/* ────────────────────────────────────────────────────────── */
 const searchLocations = async (req, res) => {
   try {
-    const { q } = req.query;
-    if (!q) {
-      return res.status(400).json({ message: 'Se requiere un término de búsqueda' });
-    }
+    const { texto } = req.query;
+    logger.info('Iniciando búsqueda de ubicaciones:', texto);
 
-    const searchQuery = {
-      $and: [
-        { isActive: true },
-        {
-          $or: [
-            { name: { $regex: q, $options: 'i' } },
-            { 'address.street': { $regex: q, $options: 'i' } },
-            { 'address.city': { $regex: q, $options: 'i' } },
-            { 'address.state': { $regex: q, $options: 'i' } },
-            { 'address.country': { $regex: q, $options: 'i' } },
-            { type: { $regex: q, $options: 'i' } },
-          ],
-        },
-      ],
+    const query = {
+      isActive: true,
+      $or: [
+        { name: { $regex: texto, $options: 'i' } },
+        { 'address.street': { $regex: texto, $options: 'i' } },
+        { 'address.city': { $regex: texto, $options: 'i' } },
+        { 'address.state': { $regex: texto, $options: 'i' } },
+        { 'address.country': { $regex: texto, $options: 'i' } }
+      ]
     };
 
-    const locations = await Location.find(searchQuery)
-      .populate('createdBy', 'name email')
-      .limit(10);
+    const locations = await Location.find(query)
+      .select('name description type coordinates address contact')
+      .limit(10)
+      .lean();
 
-    res.json(locations);
+    logger.info(`Se encontraron ${locations.length} ubicaciones`);
+
+    res.json({
+      success: true,
+      count: locations.length,
+      data: locations
+    });
+
   } catch (error) {
-    console.error('Error en búsqueda de ubicaciones:', error);
-    res.status(500).json({ message: 'Error al buscar ubicaciones' });
+    logger.error('Error en búsqueda:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al realizar la búsqueda'
+    });
   }
 };
 
+/* ────────────────────────────────────────────────────────── */
+/* Exporta todos los controladores                           */
+/* ────────────────────────────────────────────────────────── */
 module.exports = {
   getLocations,
   getLocation,
