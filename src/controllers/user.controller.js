@@ -71,6 +71,34 @@ const getUsers = async (req, res, next) => {
 };
 
 /**
+ * Crea un nuevo usuario (solo admin)
+ * @route POST /users
+ */
+const createUser = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Error de validación',
+        errors: errors.array(),
+      });
+    }
+
+    const user = new User(req.body);
+    await user.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Usuario creado exitosamente',
+      data: user,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Actualiza un usuario (solo admin)
  * @route PUT /users/:id
  */
@@ -140,10 +168,28 @@ const deleteUser = async (req, res, next) => {
   }
 };
 
+// controllers/user.controller.js  ➜ nuevo endpoint cambio de contraseña
+const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = await User.findById(req.user._id);
+    if (!(await user.comparePassword(currentPassword))) {
+      return res.status(400).json({ success: false, message: 'Contraseña actual incorrecta' });
+    }
+    user.password = newPassword;
+    await user.save();
+    res.json({ success: true, message: 'Contraseña actualizada' });
+  } catch (e) {
+    next(e);
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
   getUsers,
+  createUser,
   updateUser,
   deleteUser,
+  changePassword,
 };

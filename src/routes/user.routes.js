@@ -7,6 +7,8 @@ const {
   getUsers,
   updateUser,
   deleteUser,
+  changePassword,
+  createUser,
 } = require('../controllers/user.controller');
 
 const router = express.Router();
@@ -33,29 +35,32 @@ router.get('/me', getProfile);
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               email:
- *                 type: string
- *                 format: email
  */
 router.put(
   '/me',
-  [
-    body('name').optional().trim().notEmpty().withMessage('El nombre no puede estar vacío'),
-    body('email').optional().isEmail().withMessage('Ingrese un email válido').normalizeEmail(),
-  ],
+  [body('name').optional().trim().notEmpty(), body('email').optional().isEmail().normalizeEmail()],
   updateProfile
 );
 
-// Rutas que requieren rol de administrador
-router.use(isAdmin);
+/**
+ * @swagger
+ * /users/me/password:
+ *   put:
+ *     summary: Cambia la contraseña del usuario autenticado
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.put(
+  '/me/password',
+  [
+    body('currentPassword').notEmpty().withMessage('La contraseña actual es requerida'),
+    body('newPassword')
+      .isLength({ min: 6 })
+      .withMessage('La nueva contraseña debe tener al menos 6 caracteres'),
+  ],
+  changePassword
+);
 
 /**
  * @swagger
@@ -67,6 +72,27 @@ router.use(isAdmin);
  *       - bearerAuth: []
  */
 router.get('/', getUsers);
+
+/**
+ * @swagger
+ * /users:
+ *   post:
+ *     summary: Crea un nuevo usuario (solo admin)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post(
+  '/',
+  isAdmin,
+  [
+    body('email').isEmail().normalizeEmail(),
+    body('password').isLength({ min: 6 }),
+    body('name').notEmpty(),
+    body('role').optional().isIn(['user', 'admin']),
+  ],
+  createUser
+);
 
 /**
  * @swagger
@@ -82,30 +108,15 @@ router.get('/', getUsers);
  *         required: true
  *         schema:
  *           type: string
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               email:
- *                 type: string
- *                 format: email
- *               role:
- *                 type: string
- *                 enum: [user, admin]
- *               isActive:
- *                 type: boolean
  */
 router.put(
   '/:id',
+  isAdmin,
   [
-    body('name').optional().trim().notEmpty().withMessage('El nombre no puede estar vacío'),
-    body('email').optional().isEmail().withMessage('Ingrese un email válido').normalizeEmail(),
-    body('role').optional().isIn(['user', 'admin']).withMessage('Rol inválido'),
-    body('isActive').optional().isBoolean().withMessage('isActive debe ser un booleano'),
+    body('name').optional().trim().notEmpty(),
+    body('email').optional().isEmail().normalizeEmail(),
+    body('role').optional().isIn(['user', 'admin']),
+    body('isActive').optional().isBoolean(),
   ],
   updateUser
 );
