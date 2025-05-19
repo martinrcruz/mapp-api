@@ -2,9 +2,15 @@ const mongoose = require('mongoose');
 
 const locationSchema = new mongoose.Schema(
   {
-    name: {
+    companyName: {
       type: String,
-      required: [true, 'El nombre es requerido'],
+      required: [true, 'El nombre de empresa es requerido'],
+      trim: true,
+      index: true,
+    },
+    comercialName: {
+      type: String,
+      required: [true, 'El nombre comercial es requerido'],
       trim: true,
       index: true,
     },
@@ -12,10 +18,8 @@ const locationSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    type: {
+    activity: {
       type: String,
-      enum: ['restaurant', 'hotel', 'shop', 'other'],
-      default: 'other',
       index: true,
     },
     coordinates: {
@@ -48,6 +52,18 @@ const locationSchema = new mongoose.Schema(
       country: String,
       postalCode: String,
     },
+    municipality: {
+      type: String,
+      index: true,
+    },
+    cif: {
+      type: String,
+      index: true,
+    },
+    cnae: {
+      type: String,
+      index: true,
+    },
     contact: {
       phone: String,
       email: String,
@@ -74,12 +90,12 @@ const locationSchema = new mongoose.Schema(
 );
 
 // Índices compuestos
-locationSchema.index({ 
-  name: 'text', 
+locationSchema.index({
+  name: 'text',
   'address.street': 'text',
   'address.city': 'text',
   'address.state': 'text',
-  'address.country': 'text'
+  'address.country': 'text',
 });
 locationSchema.index({ coordinates: '2dsphere' });
 locationSchema.index({ type: 1, isActive: 1 });

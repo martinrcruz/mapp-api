@@ -68,7 +68,7 @@ const getLocations = async (req, res, next) => {
 
     const locations = await Location.find(query)
       .select(
-        'name description type coordinates address contact createdBy isActive createdAt updatedAt'
+        'companyName comercialName description activity coordinates address municipality cif cnae contact createdBy isActive createdAt updatedAt'
       )
       .populate('createdBy', 'name email')
       .lean()
@@ -234,16 +234,23 @@ const searchLocations = async (req, res) => {
     const query = {
       isActive: true,
       $or: [
-        { name: { $regex: texto, $options: 'i' } },
+        { companyName: { $regex: texto, $options: 'i' } },
+        { comercialName: { $regex: texto, $options: 'i' } },
+        { activity: { $regex: texto, $options: 'i' } },
+        { municipality: { $regex: texto, $options: 'i' } },
+        { cif: { $regex: texto, $options: 'i' } },
+        { cnae: { $regex: texto, $options: 'i' } },
         { 'address.street': { $regex: texto, $options: 'i' } },
         { 'address.city': { $regex: texto, $options: 'i' } },
         { 'address.state': { $regex: texto, $options: 'i' } },
-        { 'address.country': { $regex: texto, $options: 'i' } }
-      ]
+        { 'address.country': { $regex: texto, $options: 'i' } },
+      ],
     };
 
     const locations = await Location.find(query)
-      .select('name description type coordinates address contact')
+      .select(
+        'companyName comercialName description activity coordinates address municipality cif cnae contact'
+      )
       .limit(10)
       .lean();
 
@@ -252,14 +259,13 @@ const searchLocations = async (req, res) => {
     res.json({
       success: true,
       count: locations.length,
-      data: locations
+      data: locations,
     });
-
   } catch (error) {
     logger.error('Error en búsqueda:', error);
     res.status(500).json({
       success: false,
-      error: 'Error al realizar la búsqueda'
+      error: 'Error al realizar la búsqueda',
     });
   }
 };

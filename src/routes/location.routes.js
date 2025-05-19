@@ -50,10 +50,9 @@ router.post(
   '/',
   authenticateToken,
   [
-    body('name').trim().notEmpty().withMessage('El nombre es requerido'),
-    body('type')
-      .isIn(['restaurant', 'hotel', 'shop', 'other'])
-      .withMessage('Tipo de ubicación inválido'),
+    body('companyName').trim().notEmpty().withMessage('El nombre de empresa es requerido'),
+    body('comercialName').trim().notEmpty().withMessage('El nombre comercial es requerido'),
+    body('activity').trim().notEmpty().withMessage('La actividad es requerida'),
     body('coordinates')
       .isObject()
       .withMessage('Las coordenadas son requeridas')
@@ -74,12 +73,12 @@ router.post(
         return true;
       }),
     body('address.*').optional().trim(),
+    body('municipality').trim().notEmpty().withMessage('La municipio es requerida'),
     body('contact.email')
       .optional()
       .isEmail()
       .withMessage('Email de contacto inválido')
       .normalizeEmail(),
-    body('contact.website').optional().isURL().withMessage('URL de sitio web inválida'),
     handleValidationErrors,
   ],
   createLocation
